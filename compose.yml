@@ -1,0 +1,96 @@
+services:
+  grafana:
+    image: grafana/grafana:10.4.4
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Jakarta
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_DATABASE_TYPE=postgres
+      - GF_DATABASE_HOST=db
+      - GF_DATABASE_NAME=grafana_db
+      - GF_DATABASE_USER=grafana
+      - GF_DATABASE_PASSWORD=grafana
+    volumes:
+      - ./grafana/storage:/var/lib/grafana
+    expose:
+      - 3000   
+    depends_on:
+      - prometheus
+      - db
+    networks:
+      - monitoring
+  
+  db:
+    image: postgres:latest
+    container_name: grafana-db
+    environment:
+      - TZ=Asia/Jakarta
+      - POSTGRES_USER=grafana
+      - POSTGRES_PASSWORD=grafana
+      - POSTGRES_DB=grafana_db
+      - POSTGRES_HOST_AUTH_METHOD=md5
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grafana_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - monitoring
+
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: prometheus
+    environment:
+      - TZ=Asia/Jakarta
+    restart: unless-stopped
+    command:
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=720h'
+      - '--web.enable-lifecycle=/-/reload'
+      - '--web.listen-address=0.0.0.0:9090'
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    working_dir: /prometheus
+    expose:
+      - 9090
+    networks:
+      - monitoring
+    depends_on:
+      - nodeexporter
+  
+  node_exporter:
+    image: prom/node-exporter:v1.8.1
+    container_name: node_exporter
+    environment:
+      - TZ=Asia/Jakarta
+      - NODE_EXPORTER_TIMEOUT_OFFSET=0.1
+      - NODE_EXPORTER_MAX_REQUEST_DURATION=40s
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+      - ./config/node_exporter.yml:/etc/node_exporter/web.yml
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--web.config.file=/etc/node_exporter/web.yml'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - monitoring
+
+volumes:
+  prometheus_data:
+  postgres_data:
+
+networks:
+  monitoring:
+    driver: bridge
