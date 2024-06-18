@@ -13,7 +13,7 @@ Production environment is equipped with Grafana, Prometheus, PostgreSQL, and Nod
     ```bash
     mkdir -p grafana
     mkdir -p grafana/storage
-    chmod -R 777 grafana
+    sudo chmod -R 777 grafana
     ```
 
 2. Create password for node_exporter with this command
